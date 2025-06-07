@@ -132,7 +132,7 @@ We engineered additional nutrition features (`fat_dv_to_cal`,`carb_dv_to_cal`, `
 
 - **Weight α** on new numeric block: **9.0**  
 - **Text weight β:** 1.0 (baseline)  
-- **Held-out avg similarity:** 0.8610 (↑ 15% over baseline)
+- **Held-out avg similarity:** 0.9911 (up from 0.75 baseline)
 
 <iframe
   src="assets/alpha_tuning_plot.html"
