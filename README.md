@@ -12,7 +12,7 @@ Do unreviewed recipes differ systematically in their characteristics (e.g., cook
   - `review_count`: number of user reviews (missing if zero)  
   - `avg_rating`: average user rating (1–5 scale)  
   - Text fields: `ingredients`, `tags`, `description`  
-  - `nutrition`: nutrition formatted by 
+  - `nutrition`: nutrition formatted by [calories (#), total fat (PDV), sugar (PDV), sodium (PDV), protein (PDV), saturated fat (PDV), carbohydrates (PDV)]
   - Engineered flags: `no_reviews`, `log10_min`, `is_alcohol`, etc.
 
 **Why it matters:**  
@@ -21,8 +21,9 @@ Understanding biases in reviews helps surface under‐reviewed yet worthwhile re
 ## Data Cleaning and Exploratory Data Analysis
 
 1. **Cleaning steps**  
-   - Parsed `ingredients`, `tags`, `description` into a cleaned “corpus” for TF-IDF.  
-   - Converted numeric nutrition DV columns into per-calorie ratios (`fat_dv_to_cal`, etc.).  
+   - Parsed `ingredients`, `tags`, `description` into a cleaned “corpus” for TF-IDF.
+   - Removed a joke recipe
+   - Converted numeric nutrition DV columns into per-calorie ratios (`fat_dv_to_cal`, etc.).
    - Flagged missing reviews (`no_reviews`) and log-transformed cooking time (`log_minutes`).  
    - Binned cooking time into log-spaced categories (`time_log_bin`).
 
@@ -110,7 +111,7 @@ Even by medians, p = 0.3574 > 0.05, so no evidence of longer cook times for zero
 - **Evaluation metric:** Average nearest-neighbor cosine similarity on a held-out set (higher is better).  
 - **Features available at prediction time:**  
   - TF-IDF on `corpus` (ingredients, tags, description)  
-  - Scaled numeric features: `log_minutes`, nutrition ratios, etc.  
+  - Scaled numeric features: `log_minutes`, `nutrition`, etc.  
 
 ## Baseline Model
 
@@ -118,7 +119,7 @@ We built a baseline KNN using:
 
 - **Features:**  
   - TF-IDF (top 2 000 terms)  
-  - Numeric: `log_minutes`, `fat_dv_to_cal`, `protein_dv_to_cal`  
+  - Numeric: `log10_min`, `calories`, `avg_rating`, `n_steps`
 - **Pipeline:** Single `NearestNeighbors` fit on hstack([TF-IDF, numeric])  
 - **Held-out evaluation:**  
   - Average similarity ≈ 0.7500  
@@ -127,9 +128,9 @@ The baseline confirms that text+basic nutrition yields moderate neighbor quality
 
 ## Final Model
 
-We engineered additional nutrition features (`sugar`, `cholesterol_mg_dv`, `some_ferm`) and tuned weights:
+We engineered additional nutrition features (`fat_dv_to_cal`,`carb_dv_to_cal`, `protein_dv_to_cal`, `n_ingredients`, `is_multi_alc`, `sugar`) and tuned weights:
 
-- **Weight α** on new numeric block: **8.0**  
+- **Weight α** on new numeric block: **9.0**  
 - **Text weight β:** 1.0 (baseline)  
 - **Held-out avg similarity:** 0.8610 (↑ 15% over baseline)
 
@@ -139,7 +140,20 @@ We engineered additional nutrition features (`sugar`, `cholesterol_mg_dv`, `some
   frameborder="0">
 </iframe>
 
-**Example recommendations:**  
+## Fairness Analysis
 
-```python
-recommend(42, k=5) → [ … list of recipe names … ]
+We tested whether our recipe recommender performs equally for alcoholic and non‐alcoholic recipes by comparing each group’s average cosine similarity to its nearest neighbor.
+
+- **Group X (Alcoholic):** mean similarity = 0.9879  
+- **Group Y (Non‐alcoholic):** mean similarity = 0.9892
+- **Test:** Welch’s two‐sample t‐test on a 5 000‐recipe subsample  
+- **Results:** t = **-12**, p = **0.0011**  
+
+<iframe
+  src="assets/fairness_alc_reco.html"
+  width="800" height="500"
+  frameborder="0">
+</iframe>
+
+**Conclusion:**  
+With t = –12.033 and p < 0.0001, we reject the null hypothesis of equal mean similarity. The recommender is statistically significantly better at matching **non-alcoholic** recipes than **alcoholic** ones. Although the absolute difference is small (~0.0013), this suggests a bias that should be addressed—future work could rebalance feature weights or include fairness constraints to ensure equitable recommendation quality across both groups.
